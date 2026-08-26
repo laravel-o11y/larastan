@@ -17,6 +17,7 @@ use function array_key_exists;
 use function array_merge;
 use function class_basename;
 use function count;
+use function in_array;
 use function is_string;
 use function property_exists;
 use function strtolower;
@@ -24,6 +25,22 @@ use function strtolower;
 /** @see https://github.com/psalm/laravel-psalm-plugin/blob/master/src/SchemaAggregator.php */
 final class SchemaAggregator
 {
+    /**
+     * Blueprint methods that take no column name and manage the timestamp or
+     * remember token columns themselves. Lowercased, because that is how they are
+     * matched.
+     */
+    private const TIMESTAMP_AND_REMEMBER_TOKEN_METHODS = [
+        'timestamps',
+        'timestampstz',
+        'nullabletimestamps',
+        'nullabletimestampstz',
+        'remembertoken',
+        'droptimestamps',
+        'droptimestampstz',
+        'dropremembertoken',
+    ];
+
     /** @param array<string, SchemaTable> $tables */
     public function __construct(private ReflectionProvider $reflectionProvider, public array $tables = [])
     {
@@ -262,14 +279,10 @@ final class SchemaAggregator
                     }
                 }
 
-                if (
-                    $firstMethodCall->name->name === 'timestamps'
-                    || $firstMethodCall->name->name === 'timestampsTz'
-                    || $firstMethodCall->name->name === 'nullableTimestamps'
-                    || $firstMethodCall->name->name === 'nullableTimestampsTz'
-                    || $firstMethodCall->name->name === 'rememberToken'
-                ) {
-                    switch (strtolower($firstMethodCall->name->name)) {
+                $noArgumentMethod = strtolower($firstMethodCall->name->name);
+
+                if (in_array($noArgumentMethod, self::TIMESTAMP_AND_REMEMBER_TOKEN_METHODS, true)) {
+                    switch ($noArgumentMethod) {
                         case 'droptimestamps':
                         case 'droptimestampstz':
                             $table->dropColumn('created_at');
@@ -287,6 +300,7 @@ final class SchemaAggregator
                         case 'timestamps':
                         case 'timestampstz':
                         case 'nullabletimestamps':
+                        case 'nullabletimestampstz':
                             $table->setColumn(new SchemaColumn('created_at', 'string', true));
                             $table->setColumn(new SchemaColumn('updated_at', 'string', true));
                             break;

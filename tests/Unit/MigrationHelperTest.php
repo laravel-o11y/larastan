@@ -131,6 +131,43 @@ class MigrationHelperTest extends PHPStanTestCase
     }
 
     #[Test]
+    public function it_can_handle_migrations_with_timestamp_and_remember_token_methods(): void
+    {
+        $migrationHelper = new MigrationHelper($this->parser, [
+            __DIR__ . '/data/migrations_using_timestamp_methods',
+        ], $this->fileHelper, false, $this->reflectionProvider);
+
+        $tables = $migrationHelper->initializeTables();
+
+        self::assertCount(3, $tables);
+
+        self::assertSame(
+            ['id', 'name', 'remember_token', 'created_at', 'updated_at'],
+            array_keys($tables['users']->columns),
+        );
+        self::assertSame('string', $tables['users']->columns['remember_token']->readableType);
+        self::assertSame('string', $tables['users']->columns['created_at']->readableType);
+        self::assertSame('string', $tables['users']->columns['updated_at']->readableType);
+
+        // nullableTimestampsTz() registers the timestamp columns just like its siblings.
+        self::assertSame(['id', 'created_at', 'updated_at'], array_keys($tables['teams']->columns));
+        self::assertSame('string', $tables['teams']->columns['created_at']->readableType);
+    }
+
+    #[Test]
+    public function it_can_handle_migrations_dropping_timestamps_and_remember_token(): void
+    {
+        $migrationHelper = new MigrationHelper($this->parser, [
+            __DIR__ . '/data/migrations_using_timestamp_methods',
+        ], $this->fileHelper, false, $this->reflectionProvider);
+
+        $tables = $migrationHelper->initializeTables();
+
+        // dropTimestamps() and dropRememberToken() remove what the create added.
+        self::assertSame(['id'], array_keys($tables['accounts']->columns));
+    }
+
+    #[Test]
     public function it_can_handle_migrations_with_soft_deletes(): void
     {
         $migrationHelper = new MigrationHelper($this->parser, [__DIR__ . '/data/migrations_using_soft_deletes'], $this->fileHelper, false, $this->reflectionProvider);
