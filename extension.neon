@@ -41,6 +41,7 @@ parameters:
     checkBatchedJobIsBatchable: false
     checkBatchableJobChecksCancellation: false
     checkDispatchInTransactionAfterCommit: false
+    checkJobHandleStateMutations: false
 
 parametersSchema:
     checkOctaneCompatibility: bool()
@@ -75,6 +76,7 @@ parametersSchema:
     checkBatchedJobIsBatchable: bool()
     checkBatchableJobChecksCancellation: bool()
     checkDispatchInTransactionAfterCommit: bool()
+    checkJobHandleStateMutations: bool()
 
 conditionalTags:
     Larastan\Larastan\Rules\NoEnvCallsOutsideOfConfigRule:
@@ -125,6 +127,12 @@ conditionalTags:
         phpstan.rules.rule: %checkBatchableJobChecksCancellation%
     Larastan\Larastan\Rules\Queue\JobDispatchedInTransactionUsesAfterCommitRule:
         phpstan.rules.rule: %checkDispatchInTransactionAfterCommit%
+    Larastan\Larastan\Rules\Queue\JobHandleDoesNotMutateUniqueIdOrFailedStateRule:
+        phpstan.rules.rule: %checkJobHandleStateMutations%
+    Larastan\Larastan\Collectors\QueuedJobPropertyUsageCollector:
+        phpstan.collector: %checkJobHandleStateMutations%
+    Larastan\Larastan\Collectors\QueuedJobMethodCallCollector:
+        phpstan.collector: %checkJobHandleStateMutations%
 
 services:
     -
@@ -791,6 +799,15 @@ services:
 
     -
         class: Larastan\Larastan\Rules\Queue\JobDispatchedInTransactionUsesAfterCommitRule
+
+    -
+        class: Larastan\Larastan\Rules\Queue\JobHandleDoesNotMutateUniqueIdOrFailedStateRule
+
+    -
+        class: Larastan\Larastan\Collectors\QueuedJobPropertyUsageCollector
+
+    -
+        class: Larastan\Larastan\Collectors\QueuedJobMethodCallCollector
 
     -
         class: Illuminate\Filesystem\Filesystem

@@ -1147,3 +1147,117 @@ To enable, add the following to your `phpstan.neon` file:
 parameters:
     checkDispatchInTransactionAfterCommit: true
 ```
+
+## JobHandleDoesNotMutateUniqueIdOrFailedStateRule
+
+A queued job's `handle()` must not modify properties that its `failed()` method reads or that
+its unique lock key (`uniqueId()` or the `$uniqueId` property) depends on. Invokable jobs
+without a `handle()` method are checked through `__invoke()`, which Laravel calls instead.
+
+`failed()` is called on a fresh instance of the job, unserialized from the queued payload. It
+only sees the state the job had when it was dispatched, typically what the constructor set.
+Any value `handle()` stored on the job is gone. This applies to every queued job, unique or not.
+
+For a `ShouldBeUnique` job, Laravel computes the lock key once at dispatch to acquire the lock
+and again after `handle()` finishes, on the same instance, to release it. If `handle()`
+changed the properties the key is built from, the release targets a different key. The lock
+acquired at dispatch is then left held until `uniqueFor` expires, and every later dispatch of
+the job is silently dropped. Jobs implementing `ShouldBeUniqueUntilProcessing` release the lock
+before `handle()` runs and are not checked for this.
+
+Reads and writes come from PHPStan's property tracking. That covers assignments, array element
+writes, compound assignments, increments, list assignments, `foreach` into a property and
+properties passed by reference, such as `array_push($this->items, ...)`. Writes in closures
+inside `handle()` count, as do methods called on `$this`, `static`, `self` or `parent`, including
+methods from traits and from parent classes, even when only the job itself implements
+`ShouldQueue`. Iterating a property by reference (`foreach ($this->items as &$item)`), `unset()`,
+and changes made through a property's own object, such as `$this->model->status = ...`, are not
+tracked. Abstract classes are skipped.
+
+### Examples
+
+```php
+class ExportReport implements ShouldQueue
+{
+    private ?string $temporaryPath = null;
+
+    public function handle(): void
+    {
+        $this->temporaryPath = Storage::path('exports/'.Str::uuid());
+
+        // ... write the export ...
+    }
+
+    public function failed(Throwable $e): void
+    {
+        if ($this->temporaryPath !== null) {
+            unlink($this->temporaryPath);
+        }
+    }
+}
+```
+
+Will result in the following error:
+
+```
+Job App\Jobs\ExportReport modifies $temporaryPath in handle(), but failed() reads it.
+💡 failed() is called on a fresh copy of the job as it was dispatched and never sees changes made by handle().
+```
+
+To fix the error, set the value before dispatch, for example in the constructor, or clean up
+inside `handle()` itself:
+
+```php
+class ExportReport implements ShouldQueue
+{
+    public function __construct(private string $temporaryPath)
+    {
+    }
+
+    public function handle(): void
+    {
+        // ... write the export to $this->temporaryPath ...
+    }
+
+    public function failed(Throwable $e): void
+    {
+        @unlink($this->temporaryPath);
+    }
+}
+```
+
+A unique job whose key changes during `handle()` is reported as well:
+
+```php
+class SyncProduct implements ShouldQueue, ShouldBeUnique
+{
+    public function __construct(private string $sku)
+    {
+    }
+
+    public function uniqueId(): string
+    {
+        return $this->sku;
+    }
+
+    public function handle(): void
+    {
+        $this->sku = strtoupper($this->sku);
+    }
+}
+```
+
+```
+Job App\Jobs\SyncProduct modifies $sku in handle(), but the unique lock key depends on it.
+💡 The lock is released using the key computed after handle(), so the lock acquired at dispatch is left held. Keep uniqueId() independent of state changed by handle().
+```
+
+### Configuration
+
+This rule is disabled by default.
+To enable, add the following to your `phpstan.neon` file:
+
+```neon
+parameters:
+    checkJobHandleStateMutations: true
+```
