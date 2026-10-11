@@ -36,6 +36,7 @@ parameters:
     enableMigrationCache: true
     checkUniqueJobUniqueFor: false
     checkUniqueJobUniqueId: false
+    checkJobUniqueIdIsUnique: false
     noBatchedUniqueJob: false
     checkJobSerializesModels: false
     checkBatchedJobIsBatchable: false
@@ -70,6 +71,7 @@ parametersSchema:
     enableMigrationCache: bool()
     checkUniqueJobUniqueFor: bool()
     checkUniqueJobUniqueId: bool()
+    checkJobUniqueIdIsUnique: bool()
     noBatchedUniqueJob: bool()
     checkJobSerializesModels: bool()
     checkBatchedJobIsBatchable: bool()
@@ -115,6 +117,8 @@ conditionalTags:
         phpstan.rules.rule: %checkUniqueJobUniqueFor%
     Larastan\Larastan\Rules\Queue\UniqueJobDeclaresUniqueIdRule:
         phpstan.rules.rule: %checkUniqueJobUniqueId%
+    Larastan\Larastan\Rules\Queue\JobWithUniqueIdIsUniqueRule:
+        phpstan.rules.rule: %checkJobUniqueIdIsUnique%
     Larastan\Larastan\Rules\Queue\NoBatchedUniqueJobRule:
         phpstan.rules.rule: %noBatchedUniqueJob%
     Larastan\Larastan\Rules\Queue\JobWithModelPropertyDeclaresSerializesModelsRule:
@@ -781,6 +785,9 @@ services:
 
     -
         class: Larastan\Larastan\Rules\Queue\UniqueJobDeclaresUniqueIdRule
+
+    -
+        class: Larastan\Larastan\Rules\Queue\JobWithUniqueIdIsUniqueRule
 
     -
         class: Larastan\Larastan\Rules\Queue\NoBatchedUniqueJobRule

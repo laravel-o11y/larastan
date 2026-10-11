@@ -848,6 +848,61 @@ parameters:
     checkUniqueJobUniqueId: true
 ```
 
+## JobWithUniqueIdIsUniqueRule
+
+A queued job or queued listener (one implementing `Illuminate\Contracts\Queue\ShouldQueue`)
+that declares `uniqueId`, either as a method (`public function uniqueId(): string`) or a
+property (`public $uniqueId`), must implement `ShouldBeUnique` or
+`ShouldBeUniqueUntilProcessing`.
+
+Laravel acquires the uniqueness lock only for jobs that implement `ShouldBeUnique`
+(`ShouldBeUniqueUntilProcessing` extends it). Otherwise it never reads `uniqueId`. Every
+dispatch is queued, and the deduplication that `uniqueId` suggests does nothing, without any
+error. A `uniqueId` declared directly, inherited from a parent class, or provided by a trait
+counts. Abstract classes are skipped.
+
+### Examples
+
+```php
+class SyncCompany implements ShouldQueue
+{
+    public function __construct(public int $companyId)
+    {
+    }
+
+    public function uniqueId(): string
+    {
+        return (string) $this->companyId;
+    }
+}
+```
+
+Will result in the following error:
+
+```
+Job App\Jobs\SyncCompany declares uniqueId but does not implement ShouldBeUnique.
+💡 Implement Illuminate\Contracts\Queue\ShouldBeUnique or ShouldBeUniqueUntilProcessing, otherwise uniqueId is ignored.
+```
+
+To fix the error, implement the interface that matches when the lock should be released:
+
+```php
+class SyncCompany implements ShouldQueue, ShouldBeUnique
+{
+    // ...
+}
+```
+
+### Configuration
+
+This rule is disabled by default.
+To enable, add the following to your `phpstan.neon` file:
+
+```neon
+parameters:
+    checkJobUniqueIdIsUnique: true
+```
+
 ## NoBatchedUniqueJobRule
 
 A `ShouldBeUnique` job must not be dispatched through the bulk or batch entry points:
